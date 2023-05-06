@@ -42,6 +42,7 @@ class AgentAction(NamedTuple):
 
     tool: str
     tool_input: Union[str, dict]
+    description: Optional[str]
     log: str
 
 

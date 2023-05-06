@@ -36,6 +36,7 @@ class ConversationalChatAgent(Agent):
     """An agent designed to hold a conversation in addition to using tools."""
 
     output_parser: AgentOutputParser = Field(default_factory=ConvoOutputParser)
+    tool_message: str = TEMPLATE_TOOL_RESPONSE
 
     @classmethod
     def _get_default_output_parser(cls, **kwargs: Any) -> AgentOutputParser:
@@ -64,23 +65,20 @@ class ConversationalChatAgent(Agent):
         input_variables: Optional[List[str]] = None,
         output_parser: Optional[BaseOutputParser] = None,
     ) -> BasePromptTemplate:
-        tool_strings = "\n".join(
-            [f"> {tool.name}: {tool.description}" for tool in tools]
-        )
-        tool_names = ", ".join([tool.name for tool in tools])
         _output_parser = output_parser or cls._get_default_output_parser()
-        format_instructions = human_message.format(
-            format_instructions=_output_parser.get_format_instructions()
+        tools_list = ",\n".join(
+            [f"{tool.description}" for tool in tools]
         )
-        final_prompt = format_instructions.format(
-            tool_names=tool_names, tools=tool_strings
+        final_prompt = system_message.format(
+            format_instructions=_output_parser.get_format_instructions(),
+            tools=f"[{tools_list}]"
         )
         if input_variables is None:
             input_variables = ["input", "chat_history", "agent_scratchpad"]
         messages = [
-            SystemMessagePromptTemplate.from_template(system_message),
+            SystemMessagePromptTemplate.from_template(final_prompt),
             MessagesPlaceholder(variable_name="chat_history"),
-            HumanMessagePromptTemplate.from_template(final_prompt),
+            HumanMessagePromptTemplate.from_template(human_message),
             MessagesPlaceholder(variable_name="agent_scratchpad"),
         ]
         return ChatPromptTemplate(input_variables=input_variables, messages=messages)
@@ -93,7 +91,8 @@ class ConversationalChatAgent(Agent):
         for action, observation in intermediate_steps:
             thoughts.append(AIMessage(content=action.log))
             human_message = HumanMessage(
-                content=TEMPLATE_TOOL_RESPONSE.format(observation=observation)
+                content=self.tool_message.format(observation=observation),
+                additional_kwargs={"name": action.tool.replace(" ", "_")},
             )
             thoughts.append(human_message)
         return thoughts

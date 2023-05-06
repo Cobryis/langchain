@@ -37,7 +37,10 @@ class ConvoOutputParser(AgentOutputParser):
                     return AgentFinish({"output": response["action_input"]}, text)
                 else:
                     return AgentAction(
-                        response["action"], response["action_input"], text
+                        tool=response["action"],
+                        tool_input=response["action_input"],
+                        description=response.get("action_description", None),
+                        log=text
                     )
         except json.JSONDecodeError:
             pass
