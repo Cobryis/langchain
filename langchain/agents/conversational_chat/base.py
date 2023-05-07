@@ -60,7 +60,7 @@ class ConversationalChatAgent(Agent):
     @classmethod
     def _validate_tools(cls, tools: Sequence[BaseTool]) -> None:
         super()._validate_tools(tools)
-        validate_tools_single_input(cls.__name__, tools)
+        #validate_tools_single_input(cls.__name__, tools)
 
     @classmethod
     def create_prompt(
