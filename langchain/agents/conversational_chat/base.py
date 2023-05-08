@@ -69,6 +69,7 @@ class ConversationalChatAgent(Agent):
         tools: Sequence[BaseTool],
         system_message: str = PREFIX,
         human_message: str = SUFFIX,
+        human_name: str = "",
         input_variables: Optional[List[str]] = None,
         output_parser: Optional[BaseOutputParser] = None,
     ) -> BasePromptTemplate:
@@ -82,10 +83,14 @@ class ConversationalChatAgent(Agent):
         )
         if input_variables is None:
             input_variables = ["input", "chat_history", "agent_scratchpad"]
+
         messages = [
             SystemMessagePromptTemplate.from_template(final_prompt),
             MessagesPlaceholder(variable_name="chat_history"),
-            HumanMessagePromptTemplate.from_template(human_message),
+            HumanMessagePromptTemplate.from_template(
+                template=human_message,
+                additional_kwargs={"name": human_name}
+            ),
             MessagesPlaceholder(variable_name="agent_scratchpad"),
         ]
         return ChatPromptTemplate(input_variables=input_variables, messages=messages)
@@ -127,6 +132,7 @@ class ConversationalChatAgent(Agent):
         output_parser: Optional[AgentOutputParser] = None,
         system_message: str = PREFIX,
         human_message: str = SUFFIX,
+        human_name: str = "",
         input_variables: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> Agent:
@@ -139,6 +145,7 @@ class ConversationalChatAgent(Agent):
             human_message=human_message,
             input_variables=input_variables,
             output_parser=_output_parser,
+            human_name=human_name,
         )
         llm_chain = LLMChain(
             llm=llm,
