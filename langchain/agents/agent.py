@@ -101,6 +101,9 @@ class BaseSingleActionAgent(BaseModel):
         self,
         early_stopping_method: str,
         intermediate_steps: List[Tuple[AgentAction, str]],
+        name_to_tool_map: Dict[str, BaseTool],
+        color_mapping: Dict[str, str],
+        run_manager: Optional[CallbackManagerForChainRun] = None,
         **kwargs: Any,
     ) -> AgentFinish:
         """Return response when agent has been stopped due to max iterations."""
@@ -546,6 +549,9 @@ class Agent(BaseSingleActionAgent):
         self,
         early_stopping_method: str,
         intermediate_steps: List[Tuple[AgentAction, str]],
+        name_to_tool_map: Dict[str, BaseTool],
+        color_mapping: Dict[str, str],
+        run_manager: Optional[CallbackManagerForChainRun] = None,
         **kwargs: Any,
     ) -> AgentFinish:
         """Return response when agent has been stopped due to max iterations."""
@@ -562,15 +568,39 @@ class Agent(BaseSingleActionAgent):
             new_inputs = {"agent_scratchpad": thoughts, "stop": self._stop}
             full_inputs = {**kwargs, **new_inputs}
             full_output = self.llm_chain.predict(**full_inputs)
+
+            self.get_allowed_tools()
+
+
             # We try to extract a final answer
             parsed_output = self.output_parser.parse(full_output)
             if isinstance(parsed_output, AgentFinish):
                 # If we can extract, we send the correct stuff
                 return parsed_output
-            else:
-                # If we can extract, but the tool is not the final tool,
-                # we just return the full output
-                return AgentFinish({"output": full_output}, full_output)
+            elif isinstance(parsed_output, AgentAction):
+                if run_manager:
+                    run_manager.on_agent_action(parsed_output, color="green")
+                # Otherwise we lookup the tool
+                if parsed_output.tool in name_to_tool_map:
+                    tool = name_to_tool_map[parsed_output.tool]
+                    # final tool must be return direct
+                    if tool.return_direct:
+                        color = color_mapping[parsed_output.tool]
+                        tool_run_kwargs = self.tool_run_logging_kwargs()
+                        tool_run_kwargs["llm_prefix"] = ""
+                        # We then call the tool on the tool input to get an observation
+                        observation = tool.run(
+                            parsed_output.tool_input,
+                            verbose=False,
+                            color=color,
+                            callbacks=run_manager.get_child() if run_manager else None,
+                            **tool_run_kwargs,
+                        )
+                        return AgentFinish({"output": observation}, observation)
+
+            # If we can extract, but the tool is not the final tool,
+            # we just return the full output
+            return AgentFinish({"output": full_output}, full_output)
         else:
             raise ValueError(
                 "early_stopping_method should be one of `force` or `generate`, "
@@ -928,7 +958,12 @@ class AgentExecutor(Chain):
             iterations += 1
             time_elapsed = time.time() - start_time
         output = self.agent.return_stopped_response(
-            self.early_stopping_method, intermediate_steps, **inputs
+            self.early_stopping_method,
+            intermediate_steps,
+            name_to_tool_map,
+            color_mapping,
+            run_manager,
+            **inputs
         )
         return self._return(output, intermediate_steps)
 

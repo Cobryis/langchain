@@ -29,6 +29,7 @@ from langchain.schema import (
     BaseMessage,
     BaseOutputParser,
     HumanMessage,
+    SystemMessage,
 )
 from langchain.tools.base import BaseTool
 
@@ -110,9 +111,11 @@ class ConversationalChatAgent(Agent):
         if isinstance(thoughts, str):
             raise ValueError("construct_final_thought expects a list of BaseMessages")
         final_thought = (
-            "Now return a final answer based on the above thoughts and observations"
+            "Your current task is taking too long. Message the user now with at least "
+            "a partial response and they will tell you how to proceed. Let them know "
+            "that your response may not be the full answer. Ask them how to proceed. "
         )
-        thoughts.append(HumanMessage(content=final_thought))
+        thoughts.append(SystemMessage(content=final_thought))
         return thoughts
 
     @classmethod
